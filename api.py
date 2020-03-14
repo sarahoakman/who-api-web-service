@@ -8,77 +8,115 @@ app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 api = Api(app)
 
-def dict_factory(cursor, row):
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
+class Article(Resource):
+    @api.response(200, 'Success')
+    @api.response(404, 'No data found')
+    def get(self, start_date,end_date):
+        location = request.args.get('location')
+        if not location:
+            location = ""
+        key_terms = request.args.get('key_terms')
+        if not key_terms:
+            key_terms = ""
+        final_start,final_end = self.convert_date_to_int(start_date,end_date)
+        if final_end < final_start:
+            return "End date must be larger than start date",404
+        articles = self.check_data_exists(final_start,final_end,location,key_terms)
+        if articles == False:
+            return "No data found",404
+        result = self.get_results(articles)
+        return result,200
 
-class Report(Resource):
-    def get(self, start_date,end_date,location='',key_terms=''):
-        if start_date == "" or end_date == "":
-            return "Please provide start and end date in correct format",404
-        elif location == "" and key_terms == "":
-            result = self.get_date_only(start_date,end_date)
-        # key terms and location are provided
-        elif location != "" and key_terms != "":
-            result = self.get_date_location_key_terms(start_date,end_date,location,key_terms)
-        # location is provided
-        elif location != "":
-            result = self.get_date_location(start_date,end_date,location)
-            return result
-        #  key_terms is provided
-        elif key_terms != "":
-            result = self.get_data_key_terms(start_date,end_date,key_terms)
-            return result
-        else:
-            result = "Error",404
+    @api.response(403, 'Not Authorized')
+    def post(self, id):
+        api.abort(403)
 
-        return result
+    @api.response(403, 'Not Authorized')
+    def put(self, id):
+        api.abort(403)
 
-    def get_data_key_terms(self,start_date,end_date,key_terms):
+    @api.response(403, 'Not Authorized')
+    def delete(self, id):
+        api.abort(403)
+
+    # check if any data exists for the query
+    def check_data_exists(self,start_date,end_date,location,key_terms):
         conn = sqlite3.connect('who.db')
         conn.row_factory = dict_factory
         cur = conn.cursor()
-        query= self.construct_date_query(start_date,end_date) + ' and d.disease=\'' + key_terms.title() + '\';'
-        all_results = cur.execute(query).fetchall()
-        if not all_results:
-            return 'No data found',404
-        return all_results,200
+        query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ';'
+        if location != '' and key_terms != '':
+            query = 'SELECT * from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN Disease d on d.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location + '\'  and d.Disease = \'' + key_terms + '\';'
+        elif location != '':
+            query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,l.location,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location + '\';'
+        elif key_terms != '':
+            query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN Disease d on d.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and d.Disease = \'' + key_terms + '\';'
+        results = cur.execute(query).fetchall()
+        articles = {}
+        if len(results) == 0:
+            return False
+        for r in results:
+            if r['url'] in articles:
+                u = r['url']
+                articles[u].append(r['id'])
+            else:
+                arr = []
+                arr.append(r['id'])
+                u = r['url']
+                articles[u] = arr
+        return articles
 
-    def get_date_location_key_terms(self,start_date,end_date,location,key_terms):
+    # compile the results into correct format
+    def get_results(self,articles):
         conn = sqlite3.connect('who.db')
         conn.row_factory = dict_factory
         cur = conn.cursor()
-        # logic for key_terms can be better
-        # handle more than one key term
-        query= self.construct_date_query(start_date,end_date) + ' and l.location=\'' + location.title() + '\' and d.disease=\'' + key_terms + '\';'
-        all_results = cur.execute(query).fetchall()
-        if not all_results:
-            return 'No data found',404
-        return all_results,200
+        res = []
+        for key in articles:
+            query = 'SELECT a.url,a.date_of_publication,a.headline,a.main_text from Article a WHERE a.url = \'' + key + '\';'
+            data = cur.execute(query).fetchall()
+            data[0]['reports'] = []
+            # change publication date format
+            date = str(data[0]['date_of_publication'])
+            data[0]['date_of_publication'] = date[0:4] + '-' + date[4:6] + '-' + date[6:8] + ' ' + date[8:10] + ':' + date[10:12] + ':' + date[12:14]
+            for id in articles[key]:
+                query = 'SELECT * from Report r left join Syndrome s on s.ReportID = r.id left join Location l on l.ReportID = r.id left join Disease d on d.ReportID = r.id where r.id =' + str(id) + ';'
+                report = cur.execute(query).fetchall()
+                b = {}
+                if len(report) > 0:
+                    b['event_date'] = report[0]['event_date']
+                # get list of locations, diseases and syndromes
+                b['locations'] = []
+                b['diseases'] = []
+                b['syndromes'] = []
+                for l in report:
+                    if l['Country'] or l['Location']:
+                        places = {}
+                        if not l['Country']:
+                            l['Country'] = ""
+                        if not l['Location']:
+                            l['Location']= ""
+                        places['country'] = l['Country']
+                        places['location'] = l['Location']
+                        if places not in b['locations']:
+                            b['locations'].append(places)
+                    else:
+                        b['locations'] = ""
+                    if l['Disease'] :
+                        if l['Disease'] not in b['diseases']:
+                            b['diseases'].append(l['Disease'])
+                    else:
+                        b['diseases'] = ""
+                    if l['Symptom'] :
+                        if l['Symptom'] not in b['syndromes']:
+                            b['syndromes'].append(l['Symptom'])
+                    else:
+                        b['syndromes'] = ""
+                data[0]['reports'].append(b)
+            res.append(data[0])
+        return res
 
-    def get_date_location(self,start_date,end_date,location):
-        conn = sqlite3.connect('who.db')
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        query= self.construct_date_query(start_date,end_date) + ' and l.location=\'' + location.title() + '\';'
-        all_results = cur.execute(query).fetchall()
-        if not all_results:
-            return 'No data found',404
-        return all_results,200
-
-    def get_date_only(self,start_date,end_date):
-        conn = sqlite3.connect('who.db')
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        query= self.construct_date_query(start_date,end_date) + ';'
-        all_results = cur.execute(query).fetchall()
-        if not all_results:
-            return 'No data found',404
-        return all_results,200
-
-    def construct_date_query(self,start_date,end_date):
+    def convert_date_to_int(self,start_date,end_date):
         start_day,start_time = start_date.split('T')
         end_day,end_time = end_date.split('T')
         sd = start_day.replace("-","")
@@ -87,10 +125,15 @@ class Report(Resource):
         et = end_time.replace(":","")
         final_start = sd + st
         final_end = ed + et
-        query = 'SELECT a.Headline,a.MainText,a.PublicationDate,a.URL,c.Source,c.Cases,c.Deaths,c.Controls,d.disease,l.location,r.eventdate,s.symptom from Article a JOIN Report r on r.url = a.url LEFT JOIN Disease d on d.ReportID = r.id LEFT JOIN Description c on c.ReportID = r.id LEFT JOIN Location l on l.ReportID = r.id LEFT JOIN Syndrome s on s.ReportID = r.id where a.PublicationDate >=' + final_start + ' and a.PublicationDate <=' + final_end
-        return query
+        return final_start,final_end
 
-api.add_resource(Report, "/teletubbies/who-api/report/start_date=<string:start_date>&end_date=<string:end_date>","/teletubbies/who-api/report/start_date=<string:start_date>&end_date=<string:end_date>&location=<string:location>","/teletubbies/who-api/report/start_date=<string:start_date>&end_date=<string:end_date>&key_terms=<string:key_terms>","/teletubbies/who-api/report/start_date=<string:start_date>&end_date=<string:end_date>&key_terms=<string:key_terms>&location=<string:location>","/teletubbies/who-api/report/start_date=<string:start_date>&end_date=<string:end_date>&location=<string:location>&key_terms=<string:key_terms>")
+def dict_factory(cursor, row):
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
+
+api.add_resource(Article, "/article/<string:start_date>/<string:end_date>")
 
 if __name__ == "__main__":
     app.run()
