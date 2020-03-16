@@ -11,13 +11,16 @@ import json
 
 
 app = Flask(__name__)
-app.config["DEBUG"] = True
 
 app.config.SWAGGER_UI_OAUTH_APP_NAME = 'WHO REST Api - Teletubbies'
 app.config.SWAGGER_UI_DOC_EXPANSION = 'list'
 api = Api(app,title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database.")
 
+#api = Api(app,default='article',default_label='WHO Disease Article Operations',title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database.")
+
+
 api = api.namespace('article', description = 'WHO Disease Article and Report Operations')
+
 
 locations = api.model('Locations', {
     "country": fields.String,
@@ -239,6 +242,4 @@ def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
 api.add_resource(Article, "")
-
-if __name__ == "__main__":
-    app.run()
+app.run(debug=True)
