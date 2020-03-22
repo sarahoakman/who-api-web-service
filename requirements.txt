@@ -2,3 +2,4 @@ gunicorn
 flask
 flask_restplus
 flask_swagger_ui
+flask_restful
