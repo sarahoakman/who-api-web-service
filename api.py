@@ -10,8 +10,6 @@ from datetime import datetime
 import re
 import json
 import enum
-from dailycrawler import ItemCollectorPipeline
-import dailycrawler
 
 from time import process_time
 from Logfile.logfile import LogFile
