@@ -5,6 +5,6 @@ job = cron.new(command='python updatebot.py')
 job.minute.every(1)
 
 for item in cron:
-    print item
+    print (item)
 
 cron.write()
