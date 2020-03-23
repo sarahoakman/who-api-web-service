@@ -11,7 +11,7 @@ class WhoScraperPipeline(object):
     def __init__(self):
         current_dir = os.getcwd()
         database_path = current_dir + '\\who.db'
-        self.connection = sqlite3.connect(database_path)
+        self.connection = sqlite3.connect('../who.db')
         self.cursor = self.connection.cursor()
         #log.msg("Established connection with database") is this log file??
 

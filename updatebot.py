@@ -40,7 +40,7 @@ class UpdateBot:
         for a in actual_links[0].find_all('li'):
             for l in a.find_all('a'):
                 link = 'https://www.who.int'+ l['href']
-                with sqlite3.connect(database_path) as db:
+                with sqlite3.connect('who.db') as db:
                     cursor = db.cursor()
                     sql = '''select URL from Article WHERE URL=?'''
                     cursor.execute(sql, (link,))
