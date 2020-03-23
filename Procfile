@@ -1,2 +1,1 @@
-release: python updatebot.py migrate
-web: gunicorn api:app
+web: gunicorn api:app & pyton updatebot.py & wait -n
