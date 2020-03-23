@@ -21,7 +21,7 @@ app = Flask(__name__)
 authentication_code = "1810051939"
 app.config.SWAGGER_UI_OAUTH_APP_NAME = 'WHO REST Api - Teletubbies'
 app.config.SWAGGER_UI_DOC_EXPANSION = 'list'
-api = Api(app,title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database.")
+api = Api(app,title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database. Link to Project Github repo: https://github.com/lavanya-sood/SENG3011_TeleTubbies/. Link to Heroku Deployment Github repo: https://github.com/sarahoakman/who-api-web-service")
 parser = reqparse.RequestParser()
 
 api = api.namespace('article', description = 'WHO Disease Article and Report Operations')
@@ -368,7 +368,7 @@ class Article(Resource):
         if args['event_date'] and not self.check_match_date_range(args['event_date']):
             log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
             return {
-                'message' : "Invalid date input. Example input: '2020-01-01T00:00:00' or '2020-01-01T00:00:00 to 2020-02-01T00:00:00'",
+                'message' : "Invalid date input. Example input: '2020-01-01 00:00:00' or '2020-01-01 00:00:00 to 2020-02-01 00:00:00'",
                 'status' : 400
             },400
         self.add_report(url, args['event_date'], args['country'], args['location'], args['disease'], args['syndrome'], args['source'], args['cases'], args['deaths'], args['controls'])
