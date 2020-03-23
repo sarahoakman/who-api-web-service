@@ -7,3 +7,4 @@ bs4
 scrapy
 text2digits
 twisted
+pycountry
