@@ -8,3 +8,4 @@ scrapy
 text2digits
 twisted
 pycountry
+geotext
