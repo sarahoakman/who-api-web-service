@@ -230,7 +230,7 @@ class Article(Resource):
         with conn:
             # insert article
             sql = ''' INSERT INTO Article(url,headline,date_of_publication,main_text) VALUES(?,?,?,?) '''
-            val = (args['url'], args['date_of_publication'],args['date_of_publication'],args['main_text']);
+            val = (args['url'], args['headline'],args['date_of_publication'],args['main_text']);
             cur2 = conn.cursor()
             cur2.execute(sql, val)
             # insert report
