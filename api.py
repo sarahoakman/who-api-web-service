@@ -63,8 +63,8 @@ articles = api.model('Article', {
 parser1 = api.parser()
 parser1.add_argument('start_date', help='Start date for the articles. Use format YYYY-MM-DDTHH:MM:SS. Eg:2018-01-01T00:00:00', location='args',required=True)
 parser1.add_argument('end_date', help='End date for the articles. Use format YYYY-MM-DDTHH:MM:SS Eg:2019-12-31T11:59:59', location='args',required=True)
-parser1.add_argument('timezone', type=str, default='AEDT',
-                                choices=('ADT', 'AEDT', 'AEST', 'AET', 'MEST', 'UTC', 'WAST', 'WAT', 'WEST', 'WGT', 'WST'),
+parser1.add_argument('timezone', type=str,
+                                choices=('GMT', 'CET'),
                                 help='Timezone to filter Who news articles by')
 #DELETE
 parser2 = api.parser()
@@ -96,6 +96,7 @@ class Article(Resource):
         args = parser1.parse_args()
         start_date = args['start_date']
         end_date = args['end_date']
+        timezone = args['timezone']
         # check start and end date format
         if not re.match(r"^[0-9]{4}\-[0-9]{2}\-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$", start_date):
             log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
@@ -128,7 +129,7 @@ class Article(Resource):
                 'message' : 'End date must be larger than start date',
                 'status' : 400
             },400
-        articles = self.check_data_exists(final_start,final_end,location,key_terms)
+        articles = self.check_data_exists(final_start,final_end,location,key_terms,timezone)
         if articles == False:
             log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "No data found", '404', 'True', 'False')
             return {
@@ -468,27 +469,55 @@ class Article(Resource):
 
 
     # check if any data exists for the query
-    def check_data_exists(self,start_date,end_date,location,key_terms):
+    def check_data_exists(self,start_date,end_date,location,key_terms,timezone):
         conn = sqlite3.connect('who.db')
         conn.row_factory = dict_factory
         cur = conn.cursor()
         # only date given
         query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ';'
         # key terms and location given
-        if location != '' and key_terms != '':
+        if location != '' and key_terms != '' and timezone != None:
             if ',' in key_terms:
                 k = key_terms.split(',')
                 i = 1
-                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\'  and s.SearchTerm = \'' + k[0].lower() + '\' '
-                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + k[0].lower() + '\'and l.country = \'' + location.title() + '\' '
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and l.location = \'' + location.title() + '\'  and s.SearchTerm = \'' + k[0].lower() + '\' '
+                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date +  ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + k[0].lower() + '\'and l.country = \'' + location.title() + '\' '
                 while i < len(k):
-                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\'  and s.SearchTerm = \'' + k[i].lower() + '\' '
-                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + k[i].lower() + '\'and l.country = \'' + location.title() + '\' '
+                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date +  ' and tz.Timezone = \'' + timezone + '\' and l.location = \'' + location.title() + '\' and s.SearchTerm = \'' + k[i].lower() + '\' '
+                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + k[i].lower() + '\'and l.country = \'' + location.title() + '\' '
                     i+=1
                 query = query + ';'
             else:
-                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Disease d on d.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\'  and d.Disease = \'' + key_terms.lower() + '\' '
-                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Disease d on d.ReportID = r.id JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + key_terms.lower() + '\'and l.country = \'' + location.title() + '\';'
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Disease d on d.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and l.location = \'' + location.title() + '\'  and d.Disease = \'' + key_terms.lower() + '\' '
+                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Disease d on d.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + key_terms.lower() + '\'and l.country = \'' + location.title() + '\';'
+        #location and timezone only
+        elif location != '' and timezone != None:
+            query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and l.location = \'' + location.title() + '\' '
+            query = query + 'UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and l.country = \''   + location.title() + '\';'
+        #timezone and key terms only
+        elif key_terms != '' and timezone != None:
+            if ',' in key_terms:
+                k = key_terms.split(',')
+                i = 1
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + k[0].lower() + '\' '
+                while i < len(k):
+                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + k[i].lower() + '\' '
+                    i+=1
+                query = query + ';'
+            else:
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' and s.SearchTerm = \'' + key_terms.lower() + '\';'
+        #key terms and location only
+        elif key_terms != '' and location != '' :
+            if ',' in key_terms:
+                k = key_terms.split(',')
+                i = 1
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + k[0].lower() + '\' '
+                while i < len(k):
+                    query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + k[i].lower() + '\' '
+                    i+=1
+                query = query + ';'
+            else:
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + key_terms.lower() + '\';'
         #location only
         elif location != '':
             query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\' '
@@ -505,6 +534,11 @@ class Article(Resource):
                 query = query + ';'
             else:
                 query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + key_terms.lower() + '\';'
+       #timezone only
+        elif timezone != None:
+            query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\' '
+            query = query + 'UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Timezone tz on tz.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and tz.Timezone = \'' + timezone + '\';'
+        
         results = cur.execute(query).fetchall()
         # filter if duplicate reports
         id_list = []
