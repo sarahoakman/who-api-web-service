@@ -252,7 +252,6 @@ class Article(Resource):
         url = args['url']
         if authentication_code == au_key:
             article = self.check_url_exists(url)
-            print(article)
             if article == False:
                 return {
                 'message': 'Url does not exist',
