@@ -10,7 +10,7 @@ import scrapy, sqlite3, re, datetime,sys, logging, os
 class WhoScraperPipeline(object):
     def __init__(self):
         current_dir = os.getcwd()
-        database_path = current_dir + '\\who.db'
+        database_path = current_dir + '/who.db'
         print(database_path)
         self.connection = sqlite3.connect(database_path)
         self.cursor = self.connection.cursor()
