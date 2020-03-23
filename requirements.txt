@@ -4,3 +4,6 @@ flask_restplus
 flask_swagger_ui
 flask_restful
 bs4
+scrapy
+text2digits
+twisted
