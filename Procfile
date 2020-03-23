@@ -1,1 +1,1 @@
-web: gunicorn api:app & pyton updatebot.py & wait -n
+web: gunicorn api:app & python updatebot.py & wait -n
