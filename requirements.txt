@@ -3,3 +3,8 @@ flask
 flask_restplus
 flask_swagger_ui
 flask_restful
+bs4
+urllib.request
+scrapy.crawle
+twisted.internet
+scrapy.utils.project
