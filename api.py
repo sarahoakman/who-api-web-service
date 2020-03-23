@@ -11,15 +11,17 @@ import re
 import json
 import enum
 
+from time import process_time
+from Logfile.logfile import LogFile
+from flask import request
+
+log = LogFile()
 
 app = Flask(__name__)
 authentication_code = "1810051939"
 app.config.SWAGGER_UI_OAUTH_APP_NAME = 'WHO REST Api - Teletubbies'
 app.config.SWAGGER_UI_DOC_EXPANSION = 'list'
 api = Api(app,title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database.")
-
-#api = Api(app,default='article',default_label='WHO Disease Article Operations',title=app.config.SWAGGER_UI_OAUTH_APP_NAME,description="This API can be used to access news articles from the WHO website. The WHO news articles have been scraped and separated into disease reports in the hopes of detecting epidemics by collecting global disease data. Disease reports can be accessed using GET requests whilst the POST, PUT and DELETE request can be accessed by authorised users which manipulates the scraped data stored within an SQL database.")
-
 parser = reqparse.RequestParser()
 
 api = api.namespace('article', description = 'WHO Disease Article and Report Operations')
@@ -86,16 +88,23 @@ class Article(Resource):
     @api.doc(summary='Get request gets all the articles given the parameters')
     @api.expect(parser1,validate=False)
     def get(self):
+        # log file
+        now = datetime.now()
+        accessed_time = now.strftime('%A, %d %B %Y %H:%M:%S AEDT')
+        start_time = process_time()
+
         args = parser1.parse_args()
         start_date = args['start_date']
         end_date = args['end_date']
         # check start and end date format
         if not re.match(r"^[0-9]{4}\-[0-9]{2}\-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$", start_date):
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
             return {
                 'message' : 'Invalid date input',
                 'status' : 400
             },400
         if not re.match(r"^[0-9]{4}\-[0-9]{2}\-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$", end_date):
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
             return {
                 'message' : 'Invalid date input',
                 'status' : 400
@@ -104,6 +113,7 @@ class Article(Resource):
         if not location:
             location = ""
         elif ',' in location:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid number of locations given", '400', 'False', 'False')
             return {
                 'message' : 'Invalid number of locations given',
                 'status' : 400
@@ -113,17 +123,20 @@ class Article(Resource):
             key_terms = ""
         final_start,final_end = self.convert_date_to_int(start_date,end_date)
         if final_end < final_start:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "End date must be larger than start date", '400', 'False', 'False')
             return {
                 'message' : 'End date must be larger than start date',
                 'status' : 400
             },400
         articles = self.check_data_exists(final_start,final_end,location,key_terms)
         if articles == False:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "No data found", '404', 'True', 'False')
             return {
                 'message' : 'No data found',
                 'status' : 404
             },404
         result = self.get_results(articles)
+        log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Success', '200', 'True', 'False')
         return {
             'result' : result,
             'status' : 200
@@ -136,15 +149,22 @@ class Article(Resource):
     @api.response(200, 'Success')
     @api.expect(articles,parser3,validate=True)
     def post(self):
+        # log file
+        now = datetime.now()
+        accessed_time = now.strftime('%A, %d %B %Y %H:%M:%S AEDT')
+        start_time = process_time()
+        
         args = {}
         a = parser3.parse_args()
         # return 401 if authorization code is wrong
         if 'id' not in a:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Unable to access authorised data', '400', 'False', 'False')
             return {
                 'message' : 'Unable to access authorised data',
                 'status' : 400
             },400
         if a['id'] != authentication_code:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Invalid authentication id', '401', 'False', 'False')
             return {
                 'message' : 'Invalid authentication id',
                 'status' : 401
@@ -152,6 +172,7 @@ class Article(Resource):
         args['id'] = a['id']
         # return 400 if url or date of publication is empty
         if 'url' not in request.json or 'date_of_publication' not in request.json:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Missing required url field & date of publication in body', '400', 'False', 'False')
             return {
                 'message' : 'Missing required url field & date of publication in body',
                 'status' : 400
@@ -171,12 +192,14 @@ class Article(Resource):
         args['deaths'] = request.json['reports'][0].get("description")[0].get('deaths')
         args['controls'] = request.json['reports'][0].get("description")[0].get('controls')
         if args['event_date'] and not self.check_match_date_range(args['event_date']):
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
             return {
                 'message' : "Invalid date input",
                 'status' : 400
             },400
         # if url or publication date is empty
         if args['url'] == "" or args['date_of_publication'] == "":
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Missing required url field & date of publication in body', '400', 'False', 'False')
             return {
                 'message' : 'Missing required url field & date of publication in body',
                 'status' : 400
@@ -190,6 +213,7 @@ class Article(Resource):
         query = 'SELECT * from Article where url = \'' + args['url'] + '\';'
         results = cur.execute(query).fetchall()
         if len(results) > 0:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Url already exists', '403', 'True', 'False')
             return {
                 'message' : 'Url already exists',
                 'status' : 403
@@ -235,6 +259,7 @@ class Article(Resource):
                 val = (args['source'],args['cases'],args['deaths'],args['controls'], cur.lastrowid);
                 cur5 = conn.cursor()
                 cur5.execute(sql, val)
+        log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Article successfully added', '200', 'True', 'True')
         return {
             'message': 'Article successfully added ',
             'status' : 200
@@ -247,28 +272,37 @@ class Article(Resource):
     @api.response(500, 'Url was not deleted')
     @api.expect(parser2,validate=False)
     def delete(self):
+        # log file
+        now = datetime.now()
+        accessed_time = now.strftime('%A, %d %B %Y %H:%M:%S AEDT')
+        start_time = process_time()
+
         args = parser2.parse_args()
         au_key = args['id']
         url = args['url']
         if authentication_code == au_key:
             article = self.check_url_exists(url)
+            print(article)
             if article == False:
+                log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Url does not exist', '403', 'True', 'False')
                 return {
                 'message': 'Url does not exist',
                 'status' : 403
                 },403
             result = self.delete_result(url)
             if result == False:
+                log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Could not delete url', '500', 'True', 'False')
                 return {
                 'message': 'Could not delete url',
                 'status' : 500
                 },500
-
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Article and linked reports successfully deleted', '200', 'True', 'True')
             return {
             'message': 'Article and linked reports successfully deleted ',
             'status' : 200
             },200
         else:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Incorrect Authorization Key', '401', 'False', 'False')
             return {
             'message': 'Incorrect Authorization Key',
             'status' : 401
@@ -282,6 +316,11 @@ class Article(Resource):
     @api.response(403, 'Url does not exist')
     @api.expect(parser4,updated_reports,validate=False)
     def put(self):
+        # log file
+        now = datetime.now()
+        accessed_time = now.strftime('%A, %d %B %Y %H:%M:%S AEDT')
+        start_time = process_time()
+
         args = {}
         a = parser4.parse_args()
         args['id'] = a['id']
@@ -298,12 +337,14 @@ class Article(Resource):
 
         # return 401 if authorization code is wrong
         if authentication_code != args['id']:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, 'Incorrect Authorization Key', '401', 'False', 'False')
             return {
                 'message' : "Incorrect Authorization Key",
                 'status' : 401
             },401
         # return 400 if url is empty
         if 'url' not in request.json or request.json['url'] == "":
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Url can't be empty", '400', 'False', 'False')
             return {
                 'message' : "Url can't be empty",
                 'status' : 400
@@ -311,16 +352,19 @@ class Article(Resource):
         url = request.json['url']
         article = self.check_url_exists(url)
         if article == False:
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Url does not exist", '403', 'True', 'False')
             return {
                 'message' : "Url does not exist",
                 'status' : 403
             },403
         if args['event_date'] and not self.check_match_date_range(args['event_date']):
+            log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Invalid date input", '400', 'False', 'False')
             return {
                 'message' : "Invalid date input",
                 'status' : 400
             },400
         self.add_report(url, args['event_date'], args['country'], args['location'], args['disease'], args['syndrome'], args['source'], args['cases'], args['deaths'], args['controls'])
+        log.make_log_entry(accessed_time, start_time, process_time(), request.method, request.url, args, "Url Successfully added", '200', 'True', 'True')
         return {
             'message' : "Url Successfully added",
             'status' : 200
@@ -436,8 +480,8 @@ class Article(Resource):
                     i+=1
                 query = query + ';'
             else:
-                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id JOIN Disease d on d.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\'  and d.Disease = \'' + key_terms.lower() + '\' '
-                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN Disease d on d.ReportID = r.id JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + key_terms.lower() + '\'and l.country = \'' + location.title() + '\';'
+                query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Location l on l.ReportID = r.id JOIN Disease d on d.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\'  and d.Disease = \'' + key_terms.lower() + '\' '
+                query = query + ' UNION SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date,d.disease from Article a JOIN Report r on r.url = a.url JOIN SearchTerm s on s.ReportID = r.id JOIN Disease d on d.ReportID = r.id JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and s.SearchTerm = \'' + key_terms.lower() + '\'and l.country = \'' + location.title() + '\';'
         #location only
         elif location != '':
             query = 'SELECT r.id,a.headline,a.main_text,a.date_of_publication,a.url,r.event_date from Article a JOIN Report r on r.url = a.url JOIN Location l on l.ReportID = r.id where a.date_of_publication >=' + start_date + ' and a.date_of_publication <=' + end_date + ' and l.location = \'' + location.title() + '\' '
@@ -572,6 +616,5 @@ def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
 api.add_resource(Article, "")
-
 if __name__ == "__main__":
     app.run(debug=True)

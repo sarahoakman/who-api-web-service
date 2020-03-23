@@ -1,0 +1,10 @@
+API Accessed Timestamp: Monday, 23 March 2020 14:11:54 AEDT
+Elapsed Time: 0.359375
+Request Method: <[GET]>
+Request URL: http://127.0.0.1:5000/article?start_date=2020-03-01T00%3A00%3A00&end_date=2020-03-31T00%3A00%3A00&timezone=AEDT
+API Endpoint: /article
+Request Body: {'start_date': '2020-03-01T00:00:00', 'end_date': '2020-03-31T00:00:00', 'timezone': 'AEDT'}
+Response Description: Success
+Response Code: 200
+Resource Utilisation: {'database_accessed': 'True', 'database_updated: 'False'}
+
