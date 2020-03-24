@@ -148,7 +148,7 @@ class Article(Resource):
     @api.response(403, 'Url already exists')
     @api.response(401, 'Unauthorised id')
     @api.response(200, 'Success')
-    @api.doc(description='Post an article with a report. Required fields: url & date_of_publication')
+    @api.doc(description='Post an article with a report. Required fields: url & date_of_publication. Example format for date: 2010-09-09 09:09:09')
     @api.expect(articles,parser3,validate=True)
     def post(self):
         # log file
@@ -322,7 +322,7 @@ class Article(Resource):
     @api.response(200, 'Success')
     @api.response(400, "Invalid date input. Example input: '2020-01-01 00:00:00' or '2020-01-01 00:00:00 to 2020-02-01 00:00:00'")
     @api.response(403, 'Url does not exist')
-    @api.doc(description='Update a new report to an existing article. Required field: url')
+    @api.doc(description='Update a new report to an existing article. Required field: url. Example format for date: 2010-09-09 09:09:09')
     @api.expect(parser4,updated_reports,validate=False)
     def put(self):
         # log file
@@ -661,5 +661,6 @@ def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
 api.add_resource(Article, "")
+app.run(debug=True)
 if __name__ == "__main__":
     app.run(debug=True)
